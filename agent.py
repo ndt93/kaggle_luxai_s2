@@ -17,7 +17,8 @@ from wrappers import SimpleUnitDiscreteController, SimpleUnitObservationWrapper
 # change this to use weights stored elsewhere
 # make sure the model weights are submitted with the other code files
 # any files in the logs folder are not necessary. Make sure to exclude the .zip extension here
-MODEL_WEIGHTS_RELATIVE_PATH = "./logs/exp_1/models/best_model.zip"
+MODEL_WEIGHTS_RELATIVE_PATH = "./logs/exp_1/models/best_model"
+
 
 class Agent:
     def __init__(self, player: str, env_cfg: EnvConfig) -> None:
@@ -32,11 +33,9 @@ class Agent:
         self.controller = SimpleUnitDiscreteController(self.env_cfg)
 
     def bid_policy(self, step: int, obs, remainingOverageTime: int = 60):
-        # the policy here is the same one used in the RL tutorial: https://www.kaggle.com/code/stonet2000/rl-with-lux-2-rl-problem-solving
         return dict(faction="AlphaStrike", bid=0)
 
     def factory_placement_policy(self, step: int, obs, remainingOverageTime: int = 60):
-        # the policy here is the same one used in the RL tutorial: https://www.kaggle.com/code/stonet2000/rl-with-lux-2-rl-problem-solving
         if obs["teams"][self.player]["metal"] == 0:
             return dict()
         potential_spawns = list(zip(*np.where(obs["board"]["valid_spawns_mask"] == 1)))
@@ -81,7 +80,6 @@ class Agent:
 
         obs = th.from_numpy(obs).float()
         with th.no_grad():
-
             # to improve performance, we have a rule based action mask generator for the controller used
             # which will force the agent to generate actions that are valid only.
             action_mask = (
@@ -93,11 +91,11 @@ class Agent:
             # SB3 doesn't support invalid action masking. So we do it ourselves here
             features = self.policy.policy.features_extractor(obs.unsqueeze(0))
             x = self.policy.policy.mlp_extractor.shared_net(features)
-            logits = self.policy.policy.action_net(x) # shape (1, N) where N=12 for the default controller
+            logits = self.policy.policy.action_net(x)  # shape (1, N) where N=12 for the default controller
 
             logits[~action_mask] = -1e8 # mask out invalid actions
             dist = th.distributions.Categorical(logits=logits)
-            actions = dist.sample().cpu().numpy() # shape (1, 1)
+            actions = dist.sample().cpu().numpy()  # shape (1, 1)
 
         # use our controller which we trained with in train.py to generate a Lux S2 compatible action
         lux_action = self.controller.action_to_lux_action(
@@ -105,11 +103,11 @@ class Agent:
         )
 
         # commented code below adds watering lichen which can easily improve your agent
-        # shared_obs = raw_obs[self.player]
-        # factories = shared_obs["factories"][self.player]
-        # for unit_id in factories.keys():
-        #     factory = factories[unit_id]
-        #     if 1000 - step < 50 and factory["cargo"]["water"] > 100:
-        #         lux_action[unit_id] = 2 # water and grow lichen at the very end of the game
+        shared_obs = raw_obs[self.player]
+        factories = shared_obs["factories"][self.player]
+        for unit_id in factories.keys():
+            factory = factories[unit_id]
+            if 1000 - step < 50 and factory["cargo"]["water"] > 100:
+                lux_action[unit_id] = 2  # water and grow lichen at the very end of the game
 
         return lux_action
