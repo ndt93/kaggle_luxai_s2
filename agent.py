@@ -1,22 +1,10 @@
-"""
-This file is where your agent's logic is kept. Define a bidding policy, factory placement policy, as well as a policy for playing the normal phase of the game
-
-The tutorial will learn an RL agent to play the normal phase and use heuristics for the other two phases.
-
-Note that like the other kits, you can only debug print to standard error e.g. print("message", file=sys.stderr)
-"""
-
 import os.path as osp
-import sys
 import numpy as np
 import torch as th
 from stable_baselines3.ppo import PPO
 from lux.config import EnvConfig
 from wrappers import SimpleUnitDiscreteController, SimpleUnitObservationWrapper
 
-# change this to use weights stored elsewhere
-# make sure the model weights are submitted with the other code files
-# any files in the logs folder are not necessary. Make sure to exclude the .zip extension here
 MODEL_WEIGHTS_RELATIVE_PATH = "./logs/exp_1/models/best_model"
 
 
