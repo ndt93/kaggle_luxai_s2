@@ -1,0 +1,8 @@
+logs
+*.pth
+*.tar
+*.tar.gz
+luxai_s2
+*.zip
+.idea
+__pycache__
