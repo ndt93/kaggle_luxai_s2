@@ -3,3 +3,4 @@ stable_baselines3
 opencv-python
 rich
 jupyterlab
+tensorboard

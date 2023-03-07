@@ -29,7 +29,7 @@ class SimpleUnitObservationWrapper(gym.ObservationWrapper):
 
     # we make this method static so the submission/evaluation code can use this as well
     @staticmethod
-    def convert_obs(obs: Dict[str, Any], env_cfg: Any) -> Dict[str, npt.NDArray]:
+    def convert_obs(obs: Dict[str, Any], env_cfg: Any, all_units=False) -> Dict[str, npt.NDArray]:
         observation = dict()
         shared_obs = obs["player_0"]
         ice_map = shared_obs["board"]["ice"]
@@ -39,17 +39,21 @@ class SimpleUnitObservationWrapper(gym.ObservationWrapper):
             obs_vec = np.zeros(
                 13,
             )
-
+            units = shared_obs["units"][agent]
+            units_obs = {}
             factories = shared_obs["factories"][agent]
             factory_vec = np.zeros(2)
-            for k in factories.keys():
-                # here we track a normalized position of the first friendly factory
-                factory = factories[k]
-                factory_vec = np.array(factory["pos"]) / env_cfg.map_size
-                break
-            units = shared_obs["units"][agent]
+
             for k in units.keys():
                 unit = units[k]
+
+                dist_to_factory = sorted([
+                    (factory_id, np.sum((np.array(factory["pos"]) - np.array(unit['pos']))**2))
+                    for factory_id, factory in factories.items()
+                ], key=lambda x: x[1])
+                if dist_to_factory:
+                    factory = factories[dist_to_factory[0][0]]
+                    factory_vec = np.array(factory["pos"]) / env_cfg.map_size
 
                 # store cargo+power values scaled to [0, 1]
                 cargo_space = env_cfg.ROBOTS[unit["unit_type"]].CARGO_SPACE
@@ -66,25 +70,32 @@ class SimpleUnitObservationWrapper(gym.ObservationWrapper):
                 unit_type = (
                     0 if unit["unit_type"] == "LIGHT" else 1
                 )  # note that build actions use 0 to encode Light
-                # normalize the unit position
+                # Normalize the unit position
                 pos = np.array(unit["pos"]) / env_cfg.map_size
                 unit_vec = np.concatenate(
                     [pos, [unit_type], cargo_vec, [unit["team_id"]]], axis=-1
                 )
 
-                # we add some engineered features down here
-                # compute closest ice tile
+                # Compute closest ice tile
                 ice_tile_distances = np.mean(
                     (ice_tile_locations - np.array(unit["pos"])) ** 2, 1
                 )
-                # normalize the ice tile location
+                # Normalize the ice tile location
                 closest_ice_tile = (
                     ice_tile_locations[np.argmin(ice_tile_distances)] / env_cfg.map_size
                 )
                 obs_vec = np.concatenate(
                     [unit_vec, factory_vec - pos, closest_ice_tile - pos], axis=-1
                 )
-                break
-            observation[agent] = obs_vec
+                units_obs[k] = obs_vec
+                if not all_units:
+                    break
+
+            if not units_obs:
+                observation[agent] = obs_vec
+            elif all_units:
+                observation[agent] = units_obs
+            else:
+                observation[agent] = list(units_obs.values())[0]
 
         return observation

@@ -57,16 +57,40 @@ class Agent:
             pos = spawn_loc
 
         metal = obs["teams"][self.player]["metal"]
-        return dict(spawn=pos, metal=metal, water=metal)
+        # return dict(spawn=pos, metal=metal, water=metal)
+        if len(obs['factories'][self.player]) == 0:
+            return dict(spawn=pos, metal=metal//2, water=metal//2)
+        else:
+            return dict(spawn=pos, metal=metal, water=metal)
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         # first convert observations using the same observation wrapper you used for training
         # note that SimpleUnitObservationWrapper takes input as the full observation for both players and returns an obs for players
         raw_obs = dict(player_0=obs, player_1=obs)
-        obs = SimpleUnitObservationWrapper.convert_obs(raw_obs, env_cfg=self.env_cfg)
+        obs = SimpleUnitObservationWrapper.convert_obs(raw_obs, env_cfg=self.env_cfg, all_units=True)
         obs = obs[self.player]
 
+        if isinstance(obs, dict):
+            lux_action = {}
+            for unit_id, unit_obs in obs.items():
+                unit_action = self._run_policy(unit_obs, raw_obs, unit_id=unit_id)
+                lux_action.update(unit_action)
+        else:
+            lux_action = self._run_policy(obs, raw_obs)
+
+        # commented code below adds watering lichen which can easily improve your agent
+        shared_obs = raw_obs[self.player]
+        factories = shared_obs["factories"][self.player]
+        for unit_id in factories.keys():
+            factory = factories[unit_id]
+            if 1000 - step < 50 and factory["cargo"]["water"] > 100:
+                lux_action[unit_id] = 2
+
+        return lux_action
+
+    def _run_policy(self, obs, raw_obs, unit_id=None):
         obs = th.from_numpy(obs).float()
+
         with th.no_grad():
             # to improve performance, we have a rule based action mask generator for the controller used
             # which will force the agent to generate actions that are valid only.
@@ -75,27 +99,18 @@ class Agent:
                 .unsqueeze(0)
                 .bool()
             )
-            
+
             # SB3 doesn't support invalid action masking. So we do it ourselves here
             features = self.policy.policy.features_extractor(obs.unsqueeze(0))
             x = self.policy.policy.mlp_extractor.shared_net(features)
             logits = self.policy.policy.action_net(x)  # shape (1, N) where N=12 for the default controller
 
-            logits[~action_mask] = -1e8 # mask out invalid actions
+            logits[~action_mask] = -1e8  # mask out invalid actions
             dist = th.distributions.Categorical(logits=logits)
             actions = dist.sample().cpu().numpy()  # shape (1, 1)
 
         # use our controller which we trained with in train.py to generate a Lux S2 compatible action
         lux_action = self.controller.action_to_lux_action(
-            self.player, raw_obs, actions[0]
+            self.player, raw_obs, actions[0], acting_unit_id=unit_id
         )
-
-        # commented code below adds watering lichen which can easily improve your agent
-        shared_obs = raw_obs[self.player]
-        factories = shared_obs["factories"][self.player]
-        for unit_id in factories.keys():
-            factory = factories[unit_id]
-            if 1000 - step < 50 and factory["cargo"]["water"] > 100:
-                lux_action[unit_id] = 2  # water and grow lichen at the very end of the game
-
         return lux_action

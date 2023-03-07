@@ -97,12 +97,14 @@ class SimpleUnitDiscreteController(Controller):
         return np.array([3, 0, 0, 0, 0, 1])
 
     def action_to_lux_action(
-        self, agent: str, obs: Dict[str, Any], action: npt.NDArray
+        self, agent: str, obs: Dict[str, Any], action: npt.NDArray, acting_unit_id: str = None
     ):
         shared_obs = obs["player_0"]
         lux_action = dict()
         units = shared_obs["units"][agent]
         for unit_id in units.keys():
+            if acting_unit_id is not None and unit_id != acting_unit_id:
+                continue
             unit = units[unit_id]
             choice = action
             action_queue = []
@@ -128,10 +130,8 @@ class SimpleUnitDiscreteController(Controller):
             if not no_op:
                 lux_action[unit_id] = action_queue
 
-            break
-
         factories = shared_obs["factories"][agent]
-        if len(units) == 0:
+        if len(units) < 1:
             for unit_id in factories.keys():
                 lux_action[unit_id] = 1  # build a single heavy
 
