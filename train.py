@@ -67,8 +67,6 @@ class CustomEnvWrapper(gym.Wrapper):
         # power to do so and succeed (less frequent updates = more power is saved)
         metrics["action_queue_updates_success"] = stats["action_queue_updates_success"]
         metrics["action_queue_updates_total"] = stats["action_queue_updates_total"]
-
-        # we can save the metrics to info so we can use tensorboard to log them to get a glimpse into how our agent is behaving
         info["metrics"] = metrics
 
         reward = 0

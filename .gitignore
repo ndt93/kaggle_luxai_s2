@@ -3,7 +3,7 @@ logs
 *.tar
 *.tar.gz
 luxai_s2
-*.zip
+latest_model.zip
 .idea
 __pycache__
 *.webm
