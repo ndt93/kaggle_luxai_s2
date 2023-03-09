@@ -29,10 +29,11 @@ from wrappers import SimpleUnitDiscreteController, SimpleUnitObservationWrapper
 
 
 class CustomEnvWrapper(gym.Wrapper):
+    """
+    Adds a custom reward and turns the LuxAI_S2 environment into a single-agent environment for easy training
+    """
+
     def __init__(self, env: gym.Env) -> None:
-        """
-        Adds a custom reward and turns the LuxAI_S2 environment into a single-agent environment for easy training
-        """
         super().__init__(env)
         self.prev_step_metrics = None
 
@@ -43,7 +44,7 @@ class CustomEnvWrapper(gym.Wrapper):
         opp_factories = self.env.state.factories[opp_agent]
         for k in opp_factories.keys():
             factory = opp_factories[k]
-            # set enemy factories to have 1000 water to keep them alive the whole around and treat the game as single-agent
+            # Set enemy factories to have 1000 water to keep them alive the whole around and treat the game as single-agent
             factory.cargo.water = 1000
 
         # submit actions for just one agent to make it single-agent
@@ -53,7 +54,7 @@ class CustomEnvWrapper(gym.Wrapper):
         obs = obs[agent]
         done = done[agent]
 
-        # we collect stats on teams here. These are useful stats that can be used to help generate reward functions
+        # We collect stats on teams here. These are useful stats that can be used to help generate reward functions
         stats: StatsStateDict = self.env.state.stats[agent]
 
         info = dict()
@@ -63,7 +64,7 @@ class CustomEnvWrapper(gym.Wrapper):
         )
         metrics["water_produced"] = stats["generation"]["water"]
 
-        # we save these two to see often the agent updates robot action queues and how often enough
+        # We save these two to see often the agent updates robot action queues and how often enough
         # power to do so and succeed (less frequent updates = more power is saved)
         metrics["action_queue_updates_success"] = stats["action_queue_updates_success"]
         metrics["action_queue_updates_total"] = stats["action_queue_updates_total"]
@@ -71,7 +72,7 @@ class CustomEnvWrapper(gym.Wrapper):
 
         reward = 0
         if self.prev_step_metrics is not None:
-            # we check how much ice and water is produced and reward the agent for generating both
+            # We check how much ice and water is produced and reward the agent for generating both
             ice_dug_this_step = metrics["ice_dug"] - self.prev_step_metrics["ice_dug"]
             water_produced_this_step = (
                 metrics["water_produced"] - self.prev_step_metrics["water_produced"]
@@ -262,5 +263,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    # python ../examples/sb3.py -l logs/exp_1 -s 42 -n 1
     main(parse_args())

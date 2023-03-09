@@ -57,7 +57,6 @@ class Agent:
             pos = spawn_loc
 
         metal = obs["teams"][self.player]["metal"]
-        # return dict(spawn=pos, metal=metal, water=metal)
         if len(obs['factories'][self.player]) == 0:
             return dict(spawn=pos, metal=metal//2, water=metal//2)
         else:
@@ -78,7 +77,7 @@ class Agent:
         else:
             lux_action = self._run_policy(obs, raw_obs)
 
-        # commented code below adds watering lichen which can easily improve your agent
+        # TODO: Grow more lichens if projected enough water
         shared_obs = raw_obs[self.player]
         factories = shared_obs["factories"][self.player]
         for unit_id in factories.keys():

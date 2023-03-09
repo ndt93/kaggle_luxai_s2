@@ -130,10 +130,12 @@ class SimpleUnitDiscreteController(Controller):
             if not no_op:
                 lux_action[unit_id] = action_queue
 
+        # TODO: Avoid collisions
         factories = shared_obs["factories"][agent]
-        if len(units) < 1:
-            for unit_id in factories.keys():
-                lux_action[unit_id] = 1  # build a single heavy
+        for factory_id, factory in factories.items():
+            if factory['power'] >= self.env_cfg.ROBOTS["HEAVY"].POWER_COST and \
+                    factory['cargo']['metal'] >= self.env_cfg.ROBOTS["HEAVY"].METAL_COST:
+                lux_action[factory_id] = 1  # build a single heavy
 
         return lux_action
 
