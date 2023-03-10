@@ -28,7 +28,7 @@ class Controller:
 
 
 class SimpleUnitDiscreteController(Controller):
-    def __init__(self, env_cfg) -> None:
+    def __init__(self, env_cfg, version=0) -> None:
         """
         A simple controller that controls only the robot that will get spawned.
         Moreover, it will always try to spawn one heavy robot if there are none regardless of action given
@@ -67,6 +67,8 @@ class SimpleUnitDiscreteController(Controller):
 
         self.total_act_dims = self.no_op_dim_high
         action_space = spaces.Discrete(self.total_act_dims)
+
+        self.version = version
         super().__init__(action_space)
 
     def _is_move_action(self, id):
@@ -132,10 +134,11 @@ class SimpleUnitDiscreteController(Controller):
 
         # TODO: Avoid collisions
         factories = shared_obs["factories"][agent]
-        for factory_id, factory in factories.items():
-            if factory['power'] >= self.env_cfg.ROBOTS["HEAVY"].POWER_COST and \
-                    factory['cargo']['metal'] >= self.env_cfg.ROBOTS["HEAVY"].METAL_COST:
-                lux_action[factory_id] = 1  # build a single heavy
+        if len(units) < 1:
+            for factory_id, factory in factories.items():
+                if factory['power'] >= self.env_cfg.ROBOTS["HEAVY"].POWER_COST and \
+                        factory['cargo']['metal'] >= self.env_cfg.ROBOTS["HEAVY"].METAL_COST:
+                    lux_action[factory_id] = 1  # build a single heavy
 
         return lux_action
 

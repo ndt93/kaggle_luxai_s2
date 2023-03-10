@@ -1,3 +1,5 @@
+import math
+
 import os.path as osp
 import numpy as np
 import torch as th
@@ -9,7 +11,7 @@ MODEL_WEIGHTS_RELATIVE_PATH = "./logs/exp_1/models/best_model"
 
 
 class Agent:
-    def __init__(self, player: str, env_cfg: EnvConfig) -> None:
+    def __init__(self, player: str, env_cfg: EnvConfig, version=0) -> None:
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         np.random.seed(0)
@@ -18,7 +20,8 @@ class Agent:
         directory = osp.dirname(__file__)
         self.policy = PPO.load(osp.join(directory, MODEL_WEIGHTS_RELATIVE_PATH))
 
-        self.controller = SimpleUnitDiscreteController(self.env_cfg)
+        self.controller = SimpleUnitDiscreteController(self.env_cfg, version=version)
+        self.version = version
 
     def bid_policy(self, step: int, obs, remainingOverageTime: int = 60):
         return dict(faction="AlphaStrike", bid=0)
@@ -77,7 +80,6 @@ class Agent:
         else:
             lux_action = self._run_policy(obs, raw_obs)
 
-        # TODO: Grow more lichens if projected enough water
         shared_obs = raw_obs[self.player]
         factories = shared_obs["factories"][self.player]
         for unit_id in factories.keys():
