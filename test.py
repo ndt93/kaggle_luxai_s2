@@ -59,7 +59,7 @@ def interact(env, agents, steps):
 
 
 if __name__ == '__main__':
-    env = LuxAI_S2()
-    obs = env.reset(seed=42)
+    env = LuxAI_S2(collect_stats=True)
+    obs = env.reset()
     agents = {player: Agent(player, env.state.env_cfg) for player in env.agents}
-    interact(env, agents, 500)
+    interact(env, agents, 1000)

@@ -5,7 +5,7 @@ from stable_baselines3.ppo import PPO
 from lux.config import EnvConfig
 from wrappers import SimpleUnitDiscreteController, SimpleUnitObservationWrapper
 
-MODEL_WEIGHTS_RELATIVE_PATH = "./logs/exp_1/models/best_model"
+MODEL_WEIGHTS_RELATIVE_PATH = "./artifacts/saved_model_v1"
 
 
 class Agent:
@@ -64,8 +64,6 @@ class Agent:
             return dict(spawn=pos, metal=metal, water=metal)
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        # first convert observations using the same observation wrapper you used for training
-        # note that SimpleUnitObservationWrapper takes input as the full observation for both players and returns an obs for players
         raw_obs = dict(player_0=obs, player_1=obs)
         obs = SimpleUnitObservationWrapper.convert_obs(raw_obs, env_cfg=self.env_cfg, all_units=True)
         obs = obs[self.player]
@@ -91,24 +89,20 @@ class Agent:
         obs = th.from_numpy(obs).float()
 
         with th.no_grad():
-            # to improve performance, we have a rule based action mask generator for the controller used
-            # which will force the agent to generate actions that are valid only.
             action_mask = (
                 th.from_numpy(self.controller.action_masks(self.player, raw_obs, acting_unit_id=unit_id))
                 .unsqueeze(0)
                 .bool()
             )
 
-            # SB3 doesn't support invalid action masking. So we do it ourselves here
             features = self.policy.policy.features_extractor(obs.unsqueeze(0))
             x = self.policy.policy.mlp_extractor.shared_net(features)
-            logits = self.policy.policy.action_net(x)  # shape (1, N) where N=12 for the default controller
+            logits = self.policy.policy.action_net(x)  # Shape (1, N) where N=12 for the default controller
 
-            logits[~action_mask] = -1e8  # mask out invalid actions
+            logits[~action_mask] = -1e8
             dist = th.distributions.Categorical(logits=logits)
-            actions = dist.sample().cpu().numpy()  # shape (1, 1)
+            actions = dist.sample().cpu().numpy()  # Shape (1, 1)
 
-        # use our controller which we trained with in train.py to generate a Lux S2 compatible action
         lux_action = self.controller.action_to_lux_action(
             self.player, raw_obs, actions[0], acting_unit_id=unit_id
         )
