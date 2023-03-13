@@ -66,8 +66,6 @@ class Agent:
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         raw_obs = dict(player_0=obs, player_1=obs)
-        px_obs = PixelObservationWrapper.convert_obs(raw_obs, self.env_cfg, player_id=self.player)
-        print(px_obs)
         obs = SimpleUnitObservationWrapper.convert_obs(raw_obs, env_cfg=self.env_cfg, all_units=True)
         obs = obs[self.player]
 
