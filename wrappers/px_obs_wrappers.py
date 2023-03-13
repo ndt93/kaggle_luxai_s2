@@ -49,8 +49,10 @@ class PixelObservationWrapper(gym.ObservationWrapper):
     - Factory ore processing rate
     - Factory ice processing ratio
     - Factory ore processing ratio
+    - Factory size
     # - Power costs
     # - Water costs
+    # - Lichen strains
 
     * Image features
     - If no factory
@@ -66,6 +68,7 @@ class PixelObservationWrapper(gym.ObservationWrapper):
     - Ore amount
     - Ice amount
     - Lichen amount
+    # - Lichen strains
     - Factory power
     - Factory ice cargo
     - Factory ore cargo
@@ -97,9 +100,12 @@ class PixelObservationWrapper(gym.ObservationWrapper):
             own_player = agent
             enemy_player = "player_1" if own_player == "player_0" else "player_0"
             obs = obs[agent]
+            rubbles_map = obs['board']['rubble']
+            n_rows = len(rubbles_map)
+            n_cols = len(rubbles_map)
 
             # Generate global features
-            is_day = obs['real_env_steps'] % env_cfg.CYCLE_LENGTH < env_cfg.DAY_LENGTH
+            is_day = int(obs['real_env_steps'] % env_cfg.CYCLE_LENGTH < env_cfg.DAY_LENGTH)
             heavy_power_cost = 500
             heavy_metal_cost = 100
             heavy_cargo_cap = 1000
@@ -115,16 +121,17 @@ class PixelObservationWrapper(gym.ObservationWrapper):
             factory_ore_proc_rate = 50
             factory_ice_proc_ratio = 0.25
             factory_ore_proc_ratio = 0.2
-            global_obs = [
+            factory_size = 3/n_rows
+            global_obs = [[
                 is_day, heavy_power_cost, heavy_metal_cost, heavy_cargo_cap, heavy_battery_cap, heavy_charging_rate,
                 light_power_cost, light_metal_cost, light_cargo_cap, light_battery_cap, light_charging_rate,
                 factory_charging_rate, factory_ice_proc_rate, factory_ore_proc_rate, factory_ice_proc_ratio,
-                factory_ore_proc_ratio
-            ]
+                factory_ore_proc_ratio, factory_size
+            ]]
 
             for player in [own_player, enemy_player]:
-                factories = obs['factories'][player]
-                units = obs['units'][player]
+                factories = list(obs['factories'][player].values())
+                units = list(obs['units'][player].values())
                 player_lichens = _mask_lichen_strains(obs['board']['lichen'],
                                                       obs['teams'][player]['factory_strains'])
 
@@ -145,27 +152,87 @@ class PixelObservationWrapper(gym.ObservationWrapper):
                     total_factory_water, avg_factory_water, total_factory_metal, avg_factory_metal, total_lichens,
                     avg_factory_lichen
                 ]
-                global_obs = np.concatenate([global_obs, player_global_info], axis=-1)
+                global_obs.append(player_global_info)
+
+            global_obs = np.concatenate(global_obs, axis=-1)
 
             # Generate per pixel features
-            rubbles_map = obs['board']['rubble']
-            n_rows = len(rubbles_map)
-            n_cols = len(rubbles_map)
-            no_factory = np.zeros((n_rows, n_cols))
+            img_obs = []
+            num_factories = np.zeros((n_rows, n_cols))
+            num_units = np.zeros((n_rows, n_cols))
 
             for player in [own_player, enemy_player]:
-                factories = obs['factories'][player]
-                factories_pos = np.stack([f['pos'] for f in factories])
                 has_factory = np.zeros((n_rows, n_cols))
-                has_factory[tuple(factories_pos.T)] = 1
-                no_factory = no_factory | has_factory
+                factory_power = np.zeros((n_rows, n_cols))
+                factory_water = np.zeros((n_rows, n_cols))
+                factory_metal = np.zeros((n_rows, n_cols))
+                factory_ice = np.zeros((n_rows, n_cols))
+                factory_ore = np.zeros((n_rows, n_cols))
 
-                units = obs['units'][player]
+                factories = list(obs['factories'][player].values())
+                if factories:
+                    factories_pos = np.stack([f['pos'] for f in factories])
+                    factories_indexer = tuple(factories_pos.T)
+
+                    has_factory[factories_indexer] = 1
+                    num_factories += has_factory
+
+                    factory_power[factories_indexer] = [f['power'] for f in factories]
+                    factory_water[factories_indexer] = [f['cargo']['water'] for f in factories]
+                    factory_metal[factories_indexer] = [f['cargo']['metal'] for f in factories]
+                    factory_ice[factories_indexer] = [f['cargo']['ice'] for f in factories]
+                    factory_ore[factories_indexer] = [f['cargo']['ore'] for f in factories]
+
+                img_obs.append(has_factory)
+                img_obs.append(factory_power)
+                img_obs.append(factory_water)
+                img_obs.append(factory_metal)
+                img_obs.append(factory_ice)
+                img_obs.append(factory_ore)
+
+                units = list(obs['units'][player].values())
                 for unit_type in ['HEAVY', 'LIGHT']:
-                    units_of_type = [u for u in units if u['unit_type'] == unit_type]
-                    units_pos = np.stack([u['pos'] for u in units_of_type])
                     has_unit = np.zeros((n_rows, n_cols))
-                    has_unit[tuple(units_pos)]
+                    unit_power = np.zeros((n_rows, n_cols))
+                    unit_water = np.zeros((n_rows, n_cols))
+                    unit_metal = np.zeros((n_rows, n_cols))
+                    unit_ice = np.zeros((n_rows, n_cols))
+                    unit_ore = np.zeros((n_rows, n_cols))
+
+                    units_of_type = [u for u in units if u['unit_type'] == unit_type]
+                    if units_of_type:
+                        units_pos = np.stack([u['pos'] for u in units_of_type])
+                        units_indexer = tuple(units_pos.T)
+
+                        has_unit[units_indexer] = 1
+                        num_units += has_unit
+                        unit_power[units_indexer] = [u['power'] for u in units_of_type]
+                        unit_water[units_indexer] = [u['cargo']['water'] for u in units_of_type]
+                        unit_metal[units_indexer] = [u['cargo']['metal'] for u in units_of_type]
+                        unit_ice[units_indexer] = [u['cargo']['ice'] for u in units_of_type]
+                        unit_ore[units_indexer] = [u['cargo']['ore'] for u in units_of_type]
+
+                    img_obs.append(has_unit)
+                    img_obs.append(unit_power)
+                    img_obs.append(unit_water)
+                    img_obs.append(unit_metal)
+                    img_obs.append(unit_ice)
+                    img_obs.append(unit_ore)
+
+            img_obs.append((num_factories > 0).astype(int))
+            img_obs.append((num_units > 0).astype(int))
+            img_obs.append(rubbles_map)
+            img_obs.append(obs['board']['ice'])
+            img_obs.append(obs['board']['ore'])
+            img_obs.append((obs['board']['ice'] + obs['board']['ore'] > 0).astype(int))
+            img_obs.append(obs['board']['lichen'])
+            img_obs.extend(np.meshgrid(np.arange(n_cols)/n_cols, np.arange(n_rows)/n_rows, indexing='xy'))
+            img_obs = np.stack(img_obs, axis=0)
+
+            observation[player] = {
+                'global': global_obs,
+                'img': img_obs
+            }
 
         return observation
 

@@ -4,6 +4,7 @@ import torch as th
 from stable_baselines3.ppo import PPO
 from lux.config import EnvConfig
 from wrappers import SimpleUnitDiscreteController, SimpleUnitObservationWrapper
+from wrappers.px_obs_wrappers import PixelObservationWrapper
 
 MODEL_WEIGHTS_RELATIVE_PATH = "./artifacts/saved_model_v1"
 
@@ -65,6 +66,8 @@ class Agent:
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         raw_obs = dict(player_0=obs, player_1=obs)
+        px_obs = PixelObservationWrapper.convert_obs(raw_obs, self.env_cfg, player_id=self.player)
+        print(px_obs)
         obs = SimpleUnitObservationWrapper.convert_obs(raw_obs, env_cfg=self.env_cfg, all_units=True)
         obs = obs[self.player]
 
