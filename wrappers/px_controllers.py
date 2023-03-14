@@ -28,6 +28,7 @@ class PixelController(Controller):
         - Build a heavy robot
         - Build a light robot
         - Grow lichen
+        - No-op
         """
         self.env_cfg = env_cfg
 
@@ -46,7 +47,12 @@ class PixelController(Controller):
         self.total_robot_actions = self.no_op_dim_high
         self.total_factory_actions = 4
 
-        action_space = spaces.MultiDiscrete([self.total_robot_actions, self.total_factory_actions])
+        map_size = env_cfg.map_size
+        action_space = spaces.Dict({
+            'factory': spaces.MultiDiscrete(np.zeros((map_size, map_size), dtype=int) + self.total_factory_actions),
+            'heavy': spaces.MultiDiscrete(np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions),
+            'light': spaces.MultiDiscrete(np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions),
+        })
 
         self.version = version
         super().__init__(action_space)
@@ -114,14 +120,37 @@ class PixelController(Controller):
         return lux_action
 
     def action_masks(self, agent: str, obs: Dict[str, Any]):
-        """
-        Doesn't account for whether robot has enough power
-        """
-        # compute a factory occupancy map that will be useful for checking if a board tile
-        # has a factory and which team's factory it is.
         shared_obs = obs[agent]
+        units_action_mask = self._units_action_masks(agent, shared_obs)
+        factories_action_mask = self._factory_action_masks(agent, shared_obs)
+        return {
+            'units': units_action_mask,
+            'factories': factories_action_mask
+        }
+
+    def _factory_action_masks(self, agent, shared_obs):
+        map_size = self.env_cfg.map_size
+        action_mask = np.zeros((self.total_factory_actions, map_size, map_size), dtype=bool)
+
+        for factory_id,  factory in shared_obs['factories'][agent]:
+            indexer = tuple(factory['pos'])
+            if factory['power'] >= self.env_cfg['ROBOTS']['HEAVY'].POWER_COST and \
+                    factory['cargo']['metal'] >= self.env_cfg['ROBOTS']['HEAVY'].METAL_COST:
+                action_mask[indexer][0] = True
+            if factory['power'] >= self.env_cfg['ROBOTS']['LIGHT'].POWER_COST and \
+                    factory['cargo']['metal'] >= self.env_cfg['ROBOTS']['LIGHT'].METAL_COST:
+                action_mask[indexer][1] = True
+            # TODO: check water cost to grow lichen
+            action_mask[indexer][2:3] = True
+
+        return action_mask
+
+    def _units_action_masks(self, agent, shared_obs):
+        # TODO: check if has enough power
+        map_size = self.env_cfg.map_size
+        rubble_map = shared_obs["board"]["rubble"]
         factory_occupancy_map = (
-                np.ones_like(shared_obs["board"]["rubble"], dtype=int) * -1
+                np.ones_like(rubble_map, dtype=int) * -1
         )
         factories = dict()
         for player in shared_obs["factories"]:
@@ -129,21 +158,18 @@ class PixelController(Controller):
             for unit_id in shared_obs["factories"][player]:
                 f_data = shared_obs["factories"][player][unit_id]
                 f_pos = f_data["pos"]
-                # store in a 3x3 space around the factory position it's strain id.
-                factory_occupancy_map[
-                (f_pos[0] - 1):(f_pos[0] + 2), (f_pos[1] - 1):(f_pos[1] + 2)
-                ] = f_data["strain_id"]
-
+                factory_occupancy_map[(f_pos[0] - 1):(f_pos[0] + 2), (f_pos[1] - 1):(f_pos[1] + 2)] = f_data[
+                    "strain_id"]
         units = shared_obs["units"][agent]
-        action_mask = np.zeros((self.total_robot_actions), dtype=bool)
-        for unit_id in units.keys():
+        action_mask = np.zeros((self.total_robot_actions, map_size, map_size), dtype=bool)
+        for unit_id, unit in units.items():
             action_mask = np.zeros(self.total_robot_actions)
-            # movement is always valid
-            action_mask[:4] = True
-
-            # transferring is valid only if the target exists
-            unit = units[unit_id]
             pos = np.array(unit["pos"])
+            indexer = tuple(pos)
+            # Movement is always valid
+            action_mask[indexer][:4] = True
+
+            # Transferring is valid only if the target exists
             # a[1] = direction (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
             move_deltas = np.array([[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]])
             for i, move_delta in enumerate(move_deltas):
@@ -160,16 +186,12 @@ class PixelController(Controller):
                     continue
                 factory_there = factory_occupancy_map[transfer_pos[0], transfer_pos[1]]
                 if factory_there in shared_obs["teams"][agent]["factory_strains"]:
-                    action_mask[
-                        self.transfer_dim_high - self.transfer_act_dims + i
-                        ] = True
+                    action_mask[indexer][self.transfer_dim_high - self.transfer_act_dims + i] = True
 
             factory_there = factory_occupancy_map[pos[0], pos[1]]
-            on_top_of_factory = (
-                    factory_there in shared_obs["teams"][agent]["factory_strains"]
-            )
+            on_top_of_factory = factory_there in shared_obs["teams"][agent]["factory_strains"]
 
-            # dig is valid only if on top of tile with rubble or resources or lichen
+            # Dig is valid only if on top of tile with rubble or resources or lichen
             board_sum = (
                     shared_obs["board"]["ice"][pos[0], pos[1]]
                     + shared_obs["board"]["ore"][pos[0], pos[1]]
@@ -177,20 +199,14 @@ class PixelController(Controller):
                     + shared_obs["board"]["lichen"][pos[0], pos[1]]
             )
             if board_sum > 0 and not on_top_of_factory:
-                action_mask[
-                self.dig_dim_high - self.dig_act_dims : self.dig_dim_high
-                ] = True
+                action_mask[indexer][(self.dig_dim_high - self.dig_act_dims):self.dig_dim_high] = True
 
-            # pickup is valid only if on top of factory tile
+            # Pickup is valid only if on top of factory tile
             if on_top_of_factory:
-                action_mask[
-                self.pickup_dim_high - self.pickup_act_dims : self.pickup_dim_high
-                ] = True
-                action_mask[
-                self.dig_dim_high - self.dig_act_dims : self.dig_dim_high
-                ] = False
+                action_mask[indexer][
+                (self.pickup_dim_high - self.pickup_act_dims):self.pickup_dim_high] = True
+                action_mask[indexer][(self.dig_dim_high - self.dig_act_dims):self.dig_dim_high] = False
 
-            # no-op is always valid
-            action_mask[-1] = True
-            break
+            # No-op is always valid
+            action_mask[indexer][-1] = True
         return action_mask

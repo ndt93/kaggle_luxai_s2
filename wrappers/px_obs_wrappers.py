@@ -100,28 +100,26 @@ class PixelObservationWrapper(gym.ObservationWrapper):
             own_player = agent
             enemy_player = "player_1" if own_player == "player_0" else "player_0"
             obs = obs[agent]
-            rubbles_map = obs['board']['rubble']
-            n_rows = len(rubbles_map)
-            n_cols = len(rubbles_map)
+            map_size = env_cfg.map_size
 
             # Generate global features
             is_day = int(obs['real_env_steps'] % env_cfg.CYCLE_LENGTH < env_cfg.DAY_LENGTH)
-            heavy_power_cost = 500
-            heavy_metal_cost = 100
-            heavy_cargo_cap = 1000
-            heavy_battery_cap = 3000
-            heavy_charging_rate = 10
-            light_power_cost = 50
-            light_metal_cost = 10
-            light_cargo_cap = 100
-            light_battery_cap = 150
-            light_charging_rate = 1
-            factory_charging_rate = 50
-            factory_ice_proc_rate = 100
-            factory_ore_proc_rate = 50
-            factory_ice_proc_ratio = 0.25
-            factory_ore_proc_ratio = 0.2
-            factory_size = 3/n_rows
+            heavy_power_cost = env_cfg['ROBOTS']['HEAVY'].POWER_COST
+            heavy_metal_cost = env_cfg['ROBOTS']['HEAVY'].METAL_COST
+            heavy_cargo_cap = env_cfg['ROBOTS']['HEAVY'].CARGO_SPACE
+            heavy_battery_cap = env_cfg['ROBOTS']['HEAVY'].BATTERY_CAPACITY
+            heavy_charging_rate = env_cfg['ROBOTS']['HEAVY'].CHARGE
+            light_power_cost = env_cfg['ROBOTS']['LIGHT'].POWER_COST
+            light_metal_cost = env_cfg['ROBOTS']['LIGHT'].METAL_COST
+            light_cargo_cap = env_cfg['ROBOTS']['LIGHT'].CARGO_SPACE
+            light_battery_cap = env_cfg['ROBOTS']['LIGHT'].BATTERY_CAPACITY
+            light_charging_rate = env_cfg['ROBOTS']['LIGHT'].CHARGE
+            factory_charging_rate = env_cfg.FACTORY_CHARGE
+            factory_ice_proc_rate = env_cfg.FACTORY_PROCESSING_RATE_WATER
+            factory_ore_proc_rate = env_cfg.FACTORY_PROCESSING_RATE_METAL
+            factory_ice_proc_ratio = env_cfg.ICE_WATER_RATIO
+            factory_ore_proc_ratio = env_cfg.ORE_METAL_RATIO
+            factory_size = 3/map_size
             global_obs = [[
                 is_day, heavy_power_cost, heavy_metal_cost, heavy_cargo_cap, heavy_battery_cap, heavy_charging_rate,
                 light_power_cost, light_metal_cost, light_cargo_cap, light_battery_cap, light_charging_rate,
@@ -158,16 +156,16 @@ class PixelObservationWrapper(gym.ObservationWrapper):
 
             # Generate per pixel features
             img_obs = []
-            num_factories = np.zeros((n_rows, n_cols))
-            num_units = np.zeros((n_rows, n_cols))
+            num_factories = np.zeros((map_size, map_size))
+            num_units = np.zeros((map_size, map_size))
 
             for player in [own_player, enemy_player]:
-                has_factory = np.zeros((n_rows, n_cols))
-                factory_power = np.zeros((n_rows, n_cols))
-                factory_water = np.zeros((n_rows, n_cols))
-                factory_metal = np.zeros((n_rows, n_cols))
-                factory_ice = np.zeros((n_rows, n_cols))
-                factory_ore = np.zeros((n_rows, n_cols))
+                has_factory = np.zeros((map_size, map_size))
+                factory_power = np.zeros((map_size, map_size))
+                factory_water = np.zeros((map_size, map_size))
+                factory_metal = np.zeros((map_size, map_size))
+                factory_ice = np.zeros((map_size, map_size))
+                factory_ore = np.zeros((map_size, map_size))
 
                 factories = list(obs['factories'][player].values())
                 if factories:
@@ -192,12 +190,12 @@ class PixelObservationWrapper(gym.ObservationWrapper):
 
                 units = list(obs['units'][player].values())
                 for unit_type in ['HEAVY', 'LIGHT']:
-                    has_unit = np.zeros((n_rows, n_cols))
-                    unit_power = np.zeros((n_rows, n_cols))
-                    unit_water = np.zeros((n_rows, n_cols))
-                    unit_metal = np.zeros((n_rows, n_cols))
-                    unit_ice = np.zeros((n_rows, n_cols))
-                    unit_ore = np.zeros((n_rows, n_cols))
+                    has_unit = np.zeros((map_size, map_size))
+                    unit_power = np.zeros((map_size, map_size))
+                    unit_water = np.zeros((map_size, map_size))
+                    unit_metal = np.zeros((map_size, map_size))
+                    unit_ice = np.zeros((map_size, map_size))
+                    unit_ore = np.zeros((map_size, map_size))
 
                     units_of_type = [u for u in units if u['unit_type'] == unit_type]
                     if units_of_type:
@@ -221,12 +219,12 @@ class PixelObservationWrapper(gym.ObservationWrapper):
 
             img_obs.append((num_factories > 0).astype(int))
             img_obs.append((num_units > 0).astype(int))
-            img_obs.append(rubbles_map)
+            img_obs.append(obs['board']['rubble'])
             img_obs.append(obs['board']['ice'])
             img_obs.append(obs['board']['ore'])
             img_obs.append((obs['board']['ice'] + obs['board']['ore'] > 0).astype(int))
             img_obs.append(obs['board']['lichen'])
-            img_obs.extend(np.meshgrid(np.arange(n_cols)/n_cols, np.arange(n_rows)/n_rows, indexing='xy'))
+            img_obs.extend(np.meshgrid(np.arange(map_size)/map_size, np.arange(map_size)/map_size, indexing='xy'))
             img_obs = np.stack(img_obs, axis=0)
 
             observation[player] = {
