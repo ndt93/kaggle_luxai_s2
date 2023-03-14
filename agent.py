@@ -1,5 +1,3 @@
-import math
-
 import os.path as osp
 import numpy as np
 import torch as th
@@ -96,7 +94,7 @@ class Agent:
             # to improve performance, we have a rule based action mask generator for the controller used
             # which will force the agent to generate actions that are valid only.
             action_mask = (
-                th.from_numpy(self.controller.action_masks(self.player, raw_obs))
+                th.from_numpy(self.controller.action_masks(self.player, raw_obs, acting_unit_id=unit_id))
                 .unsqueeze(0)
                 .bool()
             )

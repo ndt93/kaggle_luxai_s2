@@ -142,7 +142,7 @@ class SimpleUnitDiscreteController(Controller):
 
         return lux_action
 
-    def action_masks(self, agent: str, obs: Dict[str, Any]):
+    def action_masks(self, agent: str, obs: Dict[str, Any], acting_unit_id=None):
         """
         Defines a simplified action mask for this controller's action space
 
@@ -169,6 +169,8 @@ class SimpleUnitDiscreteController(Controller):
         units = shared_obs["units"][agent]
         action_mask = np.zeros((self.total_act_dims), dtype=bool)
         for unit_id in units.keys():
+            if acting_unit_id is not None and unit_id != acting_unit_id:
+                continue
             action_mask = np.zeros(self.total_act_dims)
             # movement is always valid
             action_mask[:4] = True

@@ -1,1 +1,1 @@
-!tar --exclude *.ipynb* --exclude __pycache__ --exclude *.gz -vczf submission.tar.gz *
+tar --exclude *.ipynb* --exclude __pycache__ --exclude *.gz -vczf submission.tar.gz *
