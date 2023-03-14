@@ -48,11 +48,12 @@ class PixelController(Controller):
         self.total_factory_actions = 4
 
         map_size = env_cfg.map_size
-        action_space = spaces.Dict({
-            'factory': spaces.MultiDiscrete(np.zeros((map_size, map_size), dtype=int) + self.total_factory_actions),
-            'heavy': spaces.MultiDiscrete(np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions),
-            'light': spaces.MultiDiscrete(np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions),
-        })
+        factory_action_space = np.zeros((map_size, map_size), dtype=int) + self.total_factory_actions
+        heavy_action_space = np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions
+        light_action_space = np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions
+        action_space = spaces.MultiDiscrete(
+            np.stack([factory_action_space, heavy_action_space, light_action_space])
+        )
 
         self.version = version
         super().__init__(action_space)
