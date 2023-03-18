@@ -85,7 +85,11 @@ class PixelObservationWrapper(gym.ObservationWrapper):
 
     def __init__(self, env: gym.Env) -> None:
         super().__init__(env)
-        self.observation_space = spaces.Box(-999, 999, shape=(13,))
+        env_cfg = env.env_cfg
+        self.observation_space = spaces.Dict({
+            'global': spaces.Box(-999, 999, shape=(39,)),
+            'img': spaces.Box(-999, 999, shape=(45, env_cfg.map_size, env_cfg.map_size))
+        })
 
     def observation(self, obs):
         return PixelObservationWrapper.convert_obs(obs, self.env.state.env_cfg)
