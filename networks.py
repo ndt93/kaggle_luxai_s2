@@ -1,11 +1,11 @@
 from typing import Callable, Tuple
 
 import gym
-import numpy as np
 import numpy.typing as npt
 import torch
-from stable_baselines3.common.distributions import MultiCategoricalDistribution
 from torch import nn
+import torchvision as tv
+from stable_baselines3.common.distributions import MultiCategoricalDistribution
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.policies import ActorCriticPolicy
 
@@ -27,32 +27,10 @@ class DataProcessingNet(nn.Module):
         img_obs = observations['img']
 
         glb = self.global_embed(global_obs)
-        glb = glb.view(-1, -1, 1, 1).expand(-1, -1, self.map_size, self.map_size)
+        glb = glb.view(global_obs.shape[0], -1, 1, 1).expand(-1, -1, self.map_size, self.map_size)
         glb = self.global_embed_cnn(glb)
-        x = torch.concatenate([glb, img_obs], dim=0)
+        x = torch.concatenate([glb, img_obs], dim=1)
         x = self.output_cnn(x)
-        return x
-
-
-class SEBlock(nn.Module):
-
-    def __init__(self, map_size, n_channels, squeeze_dim):
-        super().__init__()
-        self.map_size = map_size
-        self.squeeze = nn.Sequential(
-            nn.AvgPool2d(kernel_size=map_size),
-            nn.Linear(n_channels, squeeze_dim),
-            nn.ReLU(),
-            nn.Linear(squeeze_dim, n_channels),
-            nn.Sigmoid()
-        )
-        self.out_activation = nn.ReLU()
-
-    def forward(self, inp):
-        x = self.squeeze(inp)
-        x = x.view(-1, -1, 1, 1).expand(-1, -1, self.map_size, self.map_size)
-        x = x * inp
-        x = self.out_activation(x)
         return x
 
 
@@ -65,7 +43,7 @@ class ResBlock(nn.Module):
             nn.LeakyReLU(),
             nn.Conv2d(n_channels, n_channels, kernel_size=5, padding=2, stride=1),
             nn.LeakyReLU(),
-            SEBlock(map_size, n_channels, squeeze_dim)
+            tv.ops.SqueezeExcitation(n_channels, squeeze_dim)
         )
         self.out_activation = nn.LeakyReLU()
 
@@ -141,7 +119,7 @@ class PixelPolicyActionNet(nn.Module):
         f = self.factory_head(inp)
         h = self.heavy_head(inp)
         l = self.light_head(inp)
-        return torch.stack([f, h, l], dim=1)
+        return torch.concatenate([f, h, l], dim=1)
 
 
 class PixelPolicyValueHead(nn.Module):
@@ -152,6 +130,7 @@ class PixelPolicyValueHead(nn.Module):
 
     def forward(self, inp):
         x = self.avg_pool(inp)
+        x = torch.flatten(x, start_dim=1)
         return x
 
 
@@ -180,10 +159,6 @@ class PixelPolicyExtractor(nn.Module):
 
 class MultiCategoricalDistribution2d(MultiCategoricalDistribution):
 
-    def __init__(self, action_dims: npt.NDArray):
-        super().__init__()
-        self.action_dims = action_dims.flatten()
-
     def proba_distribution_net(self, latent_dim: int) -> nn.Module:
         return nn.Identity()
 
@@ -201,15 +176,17 @@ class PixelPolicy(ActorCriticPolicy):
             *args,
             **kwargs,
     ):
-
-        super().__init__(observation_space, action_space, lr_schedule,
-                         features_extractor_class=features_extractor_class,
-                         *args, **kwargs)
-        self.features_dim = self.features_extractor_kwargs['features_dim']
         self.n_factory_actions = n_factory_actions
         self.n_robot_actions = n_robot_actions
         self.map_size = map_size
+        super().__init__(observation_space,
+                         action_space,
+                         lr_schedule,
+                         features_extractor_class=features_extractor_class,
+                         *args, **kwargs)
+        self.features_dim = self.features_extractor_kwargs['features_dim']
         self.action_dist = MultiCategoricalDistribution2d(action_space.nvec)
+        self._build(lr_schedule)
 
     def _build_mlp_extractor(self) -> None:
         self.mlp_extractor = PixelPolicyExtractor(

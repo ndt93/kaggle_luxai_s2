@@ -103,21 +103,21 @@ class PixelObservationWrapper(gym.ObservationWrapper):
                 continue
             own_player = agent
             enemy_player = "player_1" if own_player == "player_0" else "player_0"
-            obs = obs[agent]
+            shared_obs = obs[own_player]
             map_size = env_cfg.map_size
 
             # Generate global features
-            is_day = int(obs['real_env_steps'] % env_cfg.CYCLE_LENGTH < env_cfg.DAY_LENGTH)
-            heavy_power_cost = env_cfg['ROBOTS']['HEAVY'].POWER_COST
-            heavy_metal_cost = env_cfg['ROBOTS']['HEAVY'].METAL_COST
-            heavy_cargo_cap = env_cfg['ROBOTS']['HEAVY'].CARGO_SPACE
-            heavy_battery_cap = env_cfg['ROBOTS']['HEAVY'].BATTERY_CAPACITY
-            heavy_charging_rate = env_cfg['ROBOTS']['HEAVY'].CHARGE
-            light_power_cost = env_cfg['ROBOTS']['LIGHT'].POWER_COST
-            light_metal_cost = env_cfg['ROBOTS']['LIGHT'].METAL_COST
-            light_cargo_cap = env_cfg['ROBOTS']['LIGHT'].CARGO_SPACE
-            light_battery_cap = env_cfg['ROBOTS']['LIGHT'].BATTERY_CAPACITY
-            light_charging_rate = env_cfg['ROBOTS']['LIGHT'].CHARGE
+            is_day = int(shared_obs['real_env_steps'] % env_cfg.CYCLE_LENGTH < env_cfg.DAY_LENGTH)
+            heavy_power_cost = env_cfg.ROBOTS['HEAVY'].POWER_COST
+            heavy_metal_cost = env_cfg.ROBOTS['HEAVY'].METAL_COST
+            heavy_cargo_cap = env_cfg.ROBOTS['HEAVY'].CARGO_SPACE
+            heavy_battery_cap = env_cfg.ROBOTS['HEAVY'].BATTERY_CAPACITY
+            heavy_charging_rate = env_cfg.ROBOTS['HEAVY'].CHARGE
+            light_power_cost = env_cfg.ROBOTS['LIGHT'].POWER_COST
+            light_metal_cost = env_cfg.ROBOTS['LIGHT'].METAL_COST
+            light_cargo_cap = env_cfg.ROBOTS['LIGHT'].CARGO_SPACE
+            light_battery_cap = env_cfg.ROBOTS['LIGHT'].BATTERY_CAPACITY
+            light_charging_rate = env_cfg.ROBOTS['LIGHT'].CHARGE
             factory_charging_rate = env_cfg.FACTORY_CHARGE
             factory_ice_proc_rate = env_cfg.FACTORY_PROCESSING_RATE_WATER
             factory_ore_proc_rate = env_cfg.FACTORY_PROCESSING_RATE_METAL
@@ -132,10 +132,10 @@ class PixelObservationWrapper(gym.ObservationWrapper):
             ]]
 
             for player in [own_player, enemy_player]:
-                factories = list(obs['factories'][player].values())
-                units = list(obs['units'][player].values())
-                player_lichens = _mask_lichen_strains(obs['board']['lichen'],
-                                                      obs['teams'][player]['factory_strains'])
+                factories = list(shared_obs['factories'][player].values())
+                units = list(shared_obs['units'][player].values())
+                player_lichens = _mask_lichen_strains(shared_obs['board']['lichen'],
+                                                      shared_obs['teams'][player]['factory_strains'])
 
                 num_factories = len(factories)
                 num_heavy_robots = sum([1 if u['unit_type'] == 'HEAVY' else 0 for u in units])
@@ -171,7 +171,7 @@ class PixelObservationWrapper(gym.ObservationWrapper):
                 factory_ice = np.zeros((map_size, map_size))
                 factory_ore = np.zeros((map_size, map_size))
 
-                factories = list(obs['factories'][player].values())
+                factories = list(shared_obs['factories'][player].values())
                 if factories:
                     factories_pos = np.stack([f['pos'] for f in factories])
                     factories_indexer = tuple(factories_pos.T)
@@ -192,7 +192,7 @@ class PixelObservationWrapper(gym.ObservationWrapper):
                 img_obs.append(factory_ice)
                 img_obs.append(factory_ore)
 
-                units = list(obs['units'][player].values())
+                units = list(shared_obs['units'][player].values())
                 for unit_type in ['HEAVY', 'LIGHT']:
                     has_unit = np.zeros((map_size, map_size))
                     unit_power = np.zeros((map_size, map_size))
@@ -223,11 +223,11 @@ class PixelObservationWrapper(gym.ObservationWrapper):
 
             img_obs.append((num_factories > 0).astype(int))
             img_obs.append((num_units > 0).astype(int))
-            img_obs.append(obs['board']['rubble'])
-            img_obs.append(obs['board']['ice'])
-            img_obs.append(obs['board']['ore'])
-            img_obs.append((obs['board']['ice'] + obs['board']['ore'] > 0).astype(int))
-            img_obs.append(obs['board']['lichen'])
+            img_obs.append(shared_obs['board']['rubble'])
+            img_obs.append(shared_obs['board']['ice'])
+            img_obs.append(shared_obs['board']['ore'])
+            img_obs.append((shared_obs['board']['ice'] + shared_obs['board']['ore'] > 0).astype(int))
+            img_obs.append(shared_obs['board']['lichen'])
             img_obs.extend(np.meshgrid(np.arange(map_size)/map_size, np.arange(map_size)/map_size, indexing='xy'))
             img_obs = np.stack(img_obs, axis=0)
 

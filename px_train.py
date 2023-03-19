@@ -20,6 +20,7 @@ from stable_baselines3.common.vec_env import (
 )
 from stable_baselines3.ppo import PPO
 
+from networks import PixelPolicy
 from wrappers.px_controllers import PixelController
 from wrappers.px_obs_wrappers import PixelObservationWrapper
 
@@ -200,6 +201,7 @@ def evaluate(args, env_id, model):
 
 
 def train(args, env_id, model: PPO):
+    # eval_env = make_env(env_id, 0, max_episode_steps=1000)()
     eval_env = SubprocVecEnv(
         [make_env(env_id, i, max_episode_steps=1000) for i in range(4)]
     )
@@ -225,6 +227,7 @@ def main(args):
     if args.seed is not None:
         set_random_seed(args.seed)
     env_id = "LuxAI_S2-v0"
+    # env = make_env(env_id, 0, max_episode_steps=args.max_episode_steps)()
     env = SubprocVecEnv(
         [
             make_env(env_id, i, max_episode_steps=args.max_episode_steps)
@@ -233,9 +236,16 @@ def main(args):
     )
     env.reset()
     rollout_steps = 4000
-    policy_kwargs = dict(net_arch=(128, 128))
+    policy_kwargs = {
+        'n_factory_actions': 4,
+        'n_robot_actions': 12,
+        'map_size': 48,
+        'features_extractor_kwargs': {
+            'features_dim': 128
+        }
+    }
     model = PPO(
-        "MlpPolicy",
+        PixelPolicy,
         env,
         n_steps=rollout_steps // args.n_envs,
         batch_size=800,

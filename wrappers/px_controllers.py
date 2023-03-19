@@ -47,12 +47,16 @@ class PixelController(Controller):
         self.total_robot_actions = self.no_op_dim_high
         self.total_factory_actions = 4
 
-        map_size = env_cfg.map_size
+        self.map_size = map_size = env_cfg.map_size
         factory_action_space = np.zeros((map_size, map_size), dtype=int) + self.total_factory_actions
         heavy_action_space = np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions
         light_action_space = np.zeros((map_size, map_size), dtype=int) + self.total_robot_actions
         action_space = spaces.MultiDiscrete(
-            np.stack([factory_action_space, heavy_action_space, light_action_space])
+            np.concatenate([
+                factory_action_space.flatten(),
+                heavy_action_space.flatten(),
+                light_action_space.flatten()
+            ])
         )
 
         self.version = version
@@ -88,10 +92,16 @@ class PixelController(Controller):
     def action_to_lux_action(self, agent: str, obs: Dict[str, Any], action: npt.NDArray):
         shared_obs = obs["player_0"]
         lux_action = dict()
+        action = action.reshape(3, self.map_size, self.map_size)
 
         units = shared_obs["units"][agent]
         for unit_id, unit in units.items():
-            action_id = action[0][tuple(unit['pos'])]
+            if unit['unit_type'] == 'HEAVY':
+                action_id = action[1][tuple(unit['pos'])]
+            elif unit['unit_type'] == 'LIGHT':
+                action_id = action[2][tuple(unit['pos'])]
+            else:
+                raise Exception('Unexpected unit_type', unit['unit_type'])
             action_queue = []
             no_op = False
             if self._is_move_action(action_id):
@@ -114,7 +124,7 @@ class PixelController(Controller):
 
         factories = shared_obs["factories"][agent]
         for factory_id, factory in factories.items():
-            action_id = action[1][tuple(factory['pos'])]
+            action_id = action[0][tuple(factory['pos'])]
             if action_id < 3:
                 lux_action[factory_id] = action_id
 
