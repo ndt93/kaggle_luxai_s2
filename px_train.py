@@ -67,6 +67,8 @@ class CustomEnvWrapper(gym.Wrapper):
         metrics["action_queue_updates_total"] = stats["action_queue_updates_total"]
         info["metrics"] = metrics
 
+        metrics['num_factories'] = len(self.env.state.factories[agent])
+
         reward = 0
         if self.prev_step_metrics is not None:
             # We check how much ice and water is produced and reward the agent for generating both
@@ -74,8 +76,11 @@ class CustomEnvWrapper(gym.Wrapper):
             water_produced_this_step = (
                 metrics["water_produced"] - self.prev_step_metrics["water_produced"]
             )
-            # we reward water production more as it is the most important resource for survival
+            # We reward water production more as it is the most important resource for survival
             reward = ice_dug_this_step / 100 + water_produced_this_step
+
+            # Penalize for losing factories
+            reward += min(metrics['num_factories'] - self.prev_step_metrics['num_factories'], 0)*10**3
 
         self.prev_step_metrics = copy.deepcopy(metrics)
         return obs, reward, done, info
