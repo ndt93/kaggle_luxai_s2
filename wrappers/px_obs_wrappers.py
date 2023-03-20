@@ -141,13 +141,13 @@ class PixelObservationWrapper(gym.ObservationWrapper):
                 num_heavy_robots = sum([1 if u['unit_type'] == 'HEAVY' else 0 for u in units])
                 num_light_robots = sum([1 if u['unit_type'] == 'LIGHT' else 0 for u in units])
                 total_factory_power = sum([f['power'] for f in factories])
-                avg_factory_power = total_factory_power/num_factories
+                avg_factory_power = total_factory_power/num_factories if num_factories > 0 else 0
                 total_factory_water = sum([f['cargo']['water'] for f in factories])
-                avg_factory_water = total_factory_water/num_factories
+                avg_factory_water = total_factory_water/num_factories if num_factories > 0 else 0
                 total_factory_metal = sum([f['cargo']['metal'] for f in factories])
-                avg_factory_metal = total_factory_metal/num_factories
+                avg_factory_metal = total_factory_metal/num_factories if num_factories > 0 else 0
                 total_lichens = np.sum(player_lichens)
-                avg_factory_lichen = total_lichens/num_factories
+                avg_factory_lichen = total_lichens/num_factories if num_factories > 0 else 0
 
                 player_global_info = [
                     num_factories, num_heavy_robots, num_light_robots, total_factory_power, avg_factory_power,
